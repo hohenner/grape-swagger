@@ -1,19 +1,27 @@
 image: ruby:latest
 
-# Cache gems in between builds
-cache:
-  paths:
-    - vendor/ruby
+stages:
+  - lint
+  - test
 
-# This is a basic example for a gem or script which doesn't use
-# services such as redis or postgres
+variables:
+  BUNDLE_PATH: vendor/bundle
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - vendor/bundle
+
 before_script:
-  - ruby -v # Print out ruby version for debugging
-  # Uncomment next line if your rails app needs a JS runtime:
-  # - apt-get update -q && apt-get install nodejs -yqq
-  - bundle config set --local deployment true # Install dependencies into ./vendor/ruby
-  - bundle install -j $(nproc)
+  - gem install bundler -v 2.4.10
+  - bundle install --jobs $(nproc) --path $BUNDLE_PATH
+
+rubocop:
+  stage: lint
+  script:
+    - bundle exec rubocop
 
 rspec:
+  stage: test
   script:
-    - bundle exec rspec spec
+    - bundle exec rspec
