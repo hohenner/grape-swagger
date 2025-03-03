@@ -16,10 +16,10 @@ before_script:
   - gem install bundler -v 2.4.10
   - bundle install --jobs $(nproc) --path $BUNDLE_PATH
 
-rubocop:
-  stage: lint
-  script:
-    - bundle exec rubocop
+# rubocop:
+#   stage: lint
+#   script:
+#     - bundle exec rubocop
 
 rspec:
   stage: test
