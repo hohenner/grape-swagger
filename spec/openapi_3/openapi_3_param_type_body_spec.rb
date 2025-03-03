@@ -197,7 +197,7 @@ describe 'setting of param type, such as `query`, `path`, `formData`, `body`, `h
     let(:request_body_parameters_definition) do
       {
         'description' => 'put in body with entity parameter',
-        'properties' => { 'data' => { '$ref' => '#/components/schemas/NestedModule_ApiResponse', 'description' => 'request data' } },
+        'properties' => { 'data' => { 'allOf' => ['$ref' => '#/components/schemas/NestedModule_ApiResponse'], 'description' => 'request data' } },
         'type' => 'object'
       }
     end
