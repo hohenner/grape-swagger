@@ -97,7 +97,15 @@ module GrapeSwagger
             next if value.blank?
 
             if x == :type && @definitions[value].present?
-              memo['$ref'] = "#/components/schemas/#{value}"
+              if param[:description].present? || param[:schema][:description].present?
+                # Use allOf pattern for references with descriptions
+                description = param[:description] || param[:schema][:description]
+                memo['allOf'] = [{ '$ref' => "#/components/schemas/#{value}" }]
+                memo['description'] = description
+              else
+                # Simple reference for references without descriptions
+                memo['$ref'] = "#/components/schemas/#{value}"
+              end
             else
               memo[x] = value
             end
