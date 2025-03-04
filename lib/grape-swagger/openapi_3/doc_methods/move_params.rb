@@ -96,15 +96,32 @@ module GrapeSwagger
             value = param[:schema][x] if value.blank?
             next if value.blank?
 
-            if x == :type && @definitions[value].present?
-              if param[:description].present? || param[:schema][:description].present?
-                # Use allOf pattern for references with descriptions
-                description = param[:description] || param[:schema][:description]
-                memo['allOf'] = [{ '$ref' => "#/components/schemas/#{value}" }]
-                memo['description'] = description
+            if x == :type
+              if value == 'array'
+                # Handle array type - ensure it has items
+                memo[x] = value
+
+                # Add items property if it doesn't exist
+                if !param[:items] && !param[:schema][:items]
+                  # Default to string type if no item type is specified
+                  memo[:items] = { type: 'string' }
+                elsif param[:items]
+                  memo[:items] = param[:items]
+                elsif param[:schema][:items]
+                  memo[:items] = param[:schema][:items]
+                end
+              elsif @definitions[value].present?
+                # Handle reference type (as in our previous fix)
+                if param[:description].present? || param[:schema][:description].present?
+                  description = param[:description] || param[:schema][:description]
+                  memo['allOf'] = [{ '$ref' => "#/components/schemas/#{value}" }]
+                  memo['description'] = description
+                else
+                  memo['$ref'] = "#/components/schemas/#{value}"
+                end
               else
-                # Simple reference for references without descriptions
-                memo['$ref'] = "#/components/schemas/#{value}"
+                # Normal type handling
+                memo[x] = value
               end
             else
               memo[x] = value
