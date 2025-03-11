@@ -21,6 +21,16 @@ require 'grape-swagger-entity'
 require 'rack'
 require 'rack/test'
 
+# Define Virtus module if it doesn't exist
+unless defined?(Virtus)
+  module Virtus
+    module Attribute
+      # Use Grape's Boolean class as a substitute
+      Boolean = Grape::API::Boolean
+    end
+  end
+end
+
 RSpec.configure do |config|
   require 'rspec/expectations'
   config.include RSpec::Matchers

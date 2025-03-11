@@ -99,7 +99,7 @@ module Grape
       consumes = consumes_object(route, options[:consumes] || options[:format])
 
       parameters = params_object(route, options, path, consumes)
-                   .partition { |p| p[:in] == 'body' || p[:in] == 'formData' }
+                   .partition { |p| %w[body formData].include?(p[:in]) }
 
       method[:parameters]  = parameters.last
       method[:security]    = security_object(route)
@@ -183,22 +183,44 @@ module Grape
       parameters
     end
 
-    def response_body_object(_, _, consumes, parameters)
-      file_params, other_params = parameters.partition { |p| p[:schema][:type] == 'file' }
-      body_params, form_params = other_params.partition { |p| p[:in] == 'body' || p[:schema][:type] == 'json' }
-      result = consumes.map { |c| response_body_parameter_object(body_params, c) }
+    def response_body_object(_route, _path, consumes, parameters)
+      return { content: {} } if parameters.empty?
 
-      unless form_params.empty?
-        result << response_body_parameter_object(form_params, 'application/x-www-form-urlencoded')
+      # Handle parameters without schema
+      parameters.each do |param|
+        param[:schema] ||= {}
       end
 
-      result << response_body_parameter_object(file_params, 'application/octet-stream') unless file_params.empty?
+      file_params, other_params = parameters.partition { |p| p[:schema][:type] == 'file' }
+      body_params, form_params = other_params.partition { |p| p[:in] == 'body' || p[:schema][:type] == 'json' }
 
-      { content: result.to_h }
+      result = {}
+
+      unless body_params.empty?
+        consumes.each do |c|
+          content = response_body_parameter_object(body_params, c)
+          result[content[0]] = content[1]
+        end
+      end
+
+      unless form_params.empty?
+        content = response_body_parameter_object(form_params, 'application/x-www-form-urlencoded')
+        result[content[0]] = content[1]
+      end
+
+      unless file_params.empty?
+        content = response_body_parameter_object(file_params, 'application/octet-stream')
+        result[content[0]] = content[1]
+      end
+
+      { content: result }
     end
 
     def response_body_parameter_object(parameters, content_type)
+      return [content_type, { schema: { properties: {}, type: 'object' } }] if parameters.empty?
+
       properties = parameters.each_with_object({}) do |value, accum|
+        value[:schema] ||= {}
         value[:schema][:type] = 'object' if value[:schema][:type] == 'json'
         if value[:schema][:type] == 'file'
           value[:schema][:format] = 'binary'
@@ -207,12 +229,12 @@ module Grape
         accum[value[:name]] = value.except(:name, :in, :required, :schema).merge(value[:schema])
       end
 
-      if properties.values.one?
+      if properties.values.one? && properties.values.first && properties.values.first['$ref']
         object_reference = properties.values.first['$ref']
         result = { schema: { '$ref' => object_reference } }
       else
         result = { schema: { type: :object, properties: properties } }
-        required_values = parameters.select { |param| param[:required] }.map { |required| required[:name] }
+        required_values = parameters.select { |param| param[:required] }.map { |param| param[:name] }
         result[:schema][:required] = required_values unless required_values.empty?
       end
 
@@ -249,7 +271,7 @@ module Grape
           value[:code] = 204
         end
 
-        next if value[:code] == 204 || value[:code] == 201
+        next if [204, 201].include?(value[:code])
 
         model = !response_model.start_with?('Swagger_doc') && (@definitions[response_model] || value[:model])
 
@@ -329,7 +351,7 @@ module Grape
     end
 
     def file_response?(value)
-      value.to_s.casecmp('file').zero? ? true : false
+      value.to_s.casecmp('file').zero? || false
     end
 
     def build_file_response(memo)
@@ -373,7 +395,7 @@ module Grape
     end
 
     def expose_params_from_model(model)
-      model = model.is_a?(String) ? model.constantize : model
+      model = model.constantize if model.is_a?(String)
       model_name = model_name(model)
 
       return model_name if @definitions.key?(model_name)

@@ -108,6 +108,6 @@ describe 'type format settings' do
   end
 
   specify do
-    expect(subject['components']['schemas']['TypedDefinition']['properties']).to eql(swagger_typed_defintion)
+    expect(subject['components']['schemas']['TypedDefinition']['properties']).to eql(swagger_typed_definition)
   end
 end

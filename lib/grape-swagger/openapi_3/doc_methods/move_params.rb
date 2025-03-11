@@ -93,26 +93,26 @@ module GrapeSwagger
         def document_as_property(param)
           property_keys.each_with_object({}) do |x, memo|
             value = param[x]
-            value = param[:schema][x] if value.blank?
+            value = param[:schema][x] if value.blank? && param[:schema] && param[:schema][x]
             next if value.blank?
 
             if x == :type
               if value == 'array'
-                # Handle array type - ensure it has items
+                # Handle array type
                 memo[x] = value
 
                 # Add items property if it doesn't exist
-                if !param[:items] && !param[:schema][:items]
+                if !param[:items] && (!param[:schema] || !param[:schema][:items])
                   # Default to string type if no item type is specified
                   memo[:items] = { type: 'string' }
                 elsif param[:items]
                   memo[:items] = param[:items]
-                elsif param[:schema][:items]
+                elsif param[:schema] && param[:schema][:items]
                   memo[:items] = param[:schema][:items]
                 end
               elsif @definitions[value].present?
-                # Handle reference type (as in our previous fix)
-                if param[:description].present? || param[:schema][:description].present?
+                # Handle reference type
+                if param[:description].present? || (param[:schema] && param[:schema][:description].present?)
                   description = param[:description] || param[:schema][:description]
                   memo['allOf'] = [{ '$ref' => "#/components/schemas/#{value}" }]
                   memo['description'] = description
@@ -164,9 +164,11 @@ module GrapeSwagger
 
         def add_properties_to_definition(definition, properties, required)
           if definition.key?(:items)
+            definition[:items][:properties] ||= {}
             definition[:items][:properties].deep_merge!(properties)
             add_to_required(definition[:items], required)
           else
+            definition[:properties] ||= {}
             definition[:properties].deep_merge!(properties)
             add_to_required(definition, required)
           end
@@ -180,12 +182,12 @@ module GrapeSwagger
         end
 
         def build_body_parameter(reference, name, options)
-          {}.tap do |x|
-            x[:name] = options[:body_name] || name
-            x[:in] = 'body'
-            x[:required] = true
-            x[:schema] = { '$ref' => "#/components/schemas/#{reference}" }
-          end
+          {
+            name: options[:body_name] || name,
+            in: 'body',
+            required: true,
+            schema: { '$ref' => "#/components/schemas/#{reference}" }
+          }
         end
 
         def build_definition(name, params, verb = nil)
@@ -207,10 +209,11 @@ module GrapeSwagger
           params.each do |param|
             next unless param[:items]
 
+            param[:schema] ||= {}
             param[:schema][:type] = if param[:items][:type] == 'array'
                                       'string'
                                     elsif param[:items].key?('$ref')
-                                      param[:schema][:type] = 'object'
+                                      'object'
                                     else
                                       param[:items][:type]
                                     end
@@ -251,11 +254,18 @@ module GrapeSwagger
         end
 
         def should_expose_as_array?(params)
-          should_exposed_as(params) == 'array'
+          return false if params.empty?
+
+          params.map do |x|
+            schema = x[:schema] || {}
+            return false if schema[:type] && schema[:type] != 'array'
+          end
+
+          true
         end
 
         def should_exposed_as(params)
-          params.map { |x| return 'object' if x[:schema][:type] && x[:schema][:type] != 'array' }
+          params.map { |x| return 'object' if x[:schema] && x[:schema][:type] && x[:schema][:type] != 'array' }
           'array'
         end
       end
