@@ -98,13 +98,20 @@ module Grape
 
       consumes = consumes_object(route, options[:consumes] || options[:format])
 
-      parameters = params_object(route, options, path, consumes)
-                   .partition { |p| %w[body formData].include?(p[:in]) }
+      # Get all parameters
+      all_parameters = params_object(route, options, path, consumes)
 
-      method[:parameters]  = parameters.last
+      # Separate body/formData params from other params (like path params)
+      body_form_params, other_params = all_parameters.partition { |p| %w[body formData].include?(p[:in]) }
+
+      # Add non-body parameters to the method definition
+      method[:parameters]  = other_params
       method[:security]    = security_object(route)
-      if %w[POST PUT PATCH].include?(route.request_method)
-        method[:requestBody] = response_body_object(route, path, consumes, parameters.first)
+
+      # For methods that can have request bodies, add the requestBody if there are body params
+      # Don't pass empty body_form_params
+      if %w[POST PUT PATCH].include?(route.request_method) && body_form_params.present?
+        method[:requestBody] = response_body_object(route, path, consumes, body_form_params)
       end
 
       produces = produces_object(route, options[:produces] || options[:format])

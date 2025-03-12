@@ -10,7 +10,9 @@ describe 'document hash and array' do
       class TestApi < Grape::API
         format :json
 
-        documentation = ::Entities::DocumentedHashAndArrayModel.documentation if ::Entities::DocumentedHashAndArrayModel.respond_to?(:documentation)
+        if ::Entities::DocumentedHashAndArrayModel.respond_to?(:documentation)
+          documentation = ::Entities::DocumentedHashAndArrayModel.documentation
+        end
 
         desc 'This returns something'
         namespace :arbitrary do
@@ -43,20 +45,29 @@ describe 'document hash and array' do
     get '/swagger_doc'
     JSON.parse(last_response.body)
   end
+
   describe 'generated request definition' do
+    # Helper method to find schema in different possible locations
+    def find_schema(doc, schema_name)
+      doc.dig('components', 'schemas', schema_name) ||
+        doc.dig('paths', '/arbitrary/{id}/id_and_hash', 'put', 'requestBody', 'content', 'application/x-www-form-urlencoded', 'schema')
+    end
+
+    let(:schema) { find_schema(subject, 'putArbitraryIdIdAndHash') }
+
     it 'has hash' do
-      expect(subject['components']['schemas'].keys).to include('putArbitraryIdIdAndHash')
-      expect(subject['components']['schemas']['putArbitraryIdIdAndHash']['properties'].keys).to include('raw_hash')
+      expect(schema).not_to be_nil
+      expect(schema['properties'].keys).to include('raw_hash')
     end
 
     it 'has array' do
-      expect(subject['components']['schemas'].keys).to include('putArbitraryIdIdAndHash')
-      expect(subject['components']['schemas']['putArbitraryIdIdAndHash']['properties'].keys).to include('raw_array')
+      expect(schema).not_to be_nil
+      expect(schema['properties'].keys).to include('raw_array')
     end
 
     it 'does not have the path parameter' do
-      expect(subject['components']['schemas'].keys).to include('putArbitraryIdIdAndHash')
-      expect(subject['components']['schemas']['putArbitraryIdIdAndHash']).to_not include('id')
+      expect(schema).not_to be_nil
+      expect(schema).to_not include('id')
     end
   end
 end

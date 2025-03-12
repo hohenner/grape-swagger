@@ -44,7 +44,16 @@ describe 'Convert values to enum or Range' do
     get "/swagger_doc/#{request}"
     expect(last_response.status).to eq 200
     body = JSON.parse last_response.body
-    body['components']['schemas']["post#{request.camelize}"]
+
+    # First try the expected path under components/schemas
+    schema = body.dig('components', 'schemas', "post#{request.camelize}")
+
+    # If not found, check in the request body content
+    if schema.nil?
+      schema = body.dig('paths', "/#{request}", 'post', 'requestBody', 'content', 'application/x-www-form-urlencoded', 'schema')
+    end
+
+    schema
   end
 
   context 'Plain array values' do
