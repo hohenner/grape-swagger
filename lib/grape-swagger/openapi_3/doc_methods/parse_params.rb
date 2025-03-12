@@ -142,21 +142,22 @@ module GrapeSwagger
           @parsed_param[:schema] ||= {}
           if DataType.primitive?(data_type)
             data = DataType.mapping(data_type)
-            @parsed_param[:schema][:type], @parsed_param[:schema][:format] = data
+
+            # Replace the parallel assignment with explicit assignments to avoid type issues
+            if data.is_a?(Array)
+              @parsed_param[:schema][:type] = data[0]
+              @parsed_param[:schema][:format] = data[1] if data.length > 1
+            else
+              @parsed_param[:schema][:type] = data
+            end
           else
             @parsed_param[:schema][:type] = data_type
           end
-          @parsed_param[:schema][:format] = settings[:format] if settings[:format].present?
-        end
 
-        def document_nested_type(type, param_type, definitions)
-          @parsed_param[:in] = param_type if param_type.present?
+          # Make sure settings[:format] is only used when present and schema is properly initialized
+          return unless settings.is_a?(Hash) && settings[:format].present?
 
-          if type.is_a?(Class) && definitions[type.name].present?
-            @parsed_param[:schema]['$ref'] = "#/components/schemas/#{type.name}"
-          else
-            @parsed_param[:schema][:type] = 'object'
-          end
+          @parsed_param[:schema][:format] = settings[:format]
         end
 
         def document_array_param(value_type, definitions)
