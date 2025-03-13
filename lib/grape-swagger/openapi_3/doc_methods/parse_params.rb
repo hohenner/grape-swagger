@@ -22,13 +22,16 @@ module GrapeSwagger
             document_type(data_type, definitions)
             add_array_validator(values, data_type, definitions)
 
-            # If param_type is body, adjust accordingly for OpenAPI 3
-            @parsed_param[:in] = if values[:param_type] == 'body' || values[:in] == 'body'
-                                   'body'
-                                 else
-                                   # Set param type based on param_type or default to query
-                                   values[:param_type] || values[:in] || 'query'
-                                 end
+            # Handle header parameters explicitly
+            if values[:documentation] && values[:documentation][:header]
+              @parsed_param[:in] = 'header'
+            # Handle body parameters
+            elsif values[:documentation] && (values[:documentation][:in] == 'body' || values[:documentation][:param_type] == 'body')
+              @parsed_param[:in] = 'body'
+            # Set param type based on param_type or default to query
+            else
+              @parsed_param[:in] = values[:param_type] || values[:in] || 'query'
+            end
 
             # Properly handle required flag
             @parsed_param[:required] = values[:required] || false

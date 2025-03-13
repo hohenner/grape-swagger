@@ -13,16 +13,14 @@ module GrapeSwagger
 
           # Check if any parameter should be in the body
           params.any? do |param|
-            # Original body param check
+            # Check direct param settings
             param[:in] == 'body' ||
-              # Also check for hash and array types that should be in body
-              param[:type] == 'Hash' ||
-              param[:type] == 'Array' ||
+              param[:param_type] == 'body' ||
+              # Check schema type
               (param[:schema] && %w[object array].include?(param[:schema][:type])) ||
-              # Check documentation type as well
+              # Check documentation
               (param[:documentation] &&
-               (%w[Hash Array].include?(param[:documentation][:type]) ||
-                param[:documentation][:in] == 'body' ||
+               (param[:documentation][:in] == 'body' ||
                 param[:documentation][:param_type] == 'body'))
           end
         end
@@ -271,12 +269,9 @@ module GrapeSwagger
 
         def deletable?(param)
           param[:in] == 'body' ||
-            param[:type] == 'Hash' ||
-            param[:type] == 'Array' ||
-            (param[:schema] && %w[object array].include?(param[:schema][:type])) ||
+            param[:param_type] == 'body' ||
             (param[:documentation] &&
-             (%w[Hash Array].include?(param[:documentation][:type]) ||
-              param[:documentation][:in] == 'body' ||
+             (param[:documentation][:in] == 'body' ||
               param[:documentation][:param_type] == 'body'))
         end
 
