@@ -9,7 +9,22 @@ module GrapeSwagger
         attr_accessor :definitions
 
         def can_be_moved?(params, http_verb)
-          move_methods.include?(http_verb) && includes_body_param?(params)
+          return false unless move_methods.include?(http_verb)
+
+          # Check if any parameter should be in the body
+          params.any? do |param|
+            # Original body param check
+            param[:in] == 'body' ||
+              # Also check for hash and array types that should be in body
+              param[:type] == 'Hash' ||
+              param[:type] == 'Array' ||
+              (param[:schema] && %w[object array].include?(param[:schema][:type])) ||
+              # Check documentation type as well
+              (param[:documentation] &&
+               (%w[Hash Array].include?(param[:documentation][:type]) ||
+                param[:documentation][:in] == 'body' ||
+                param[:documentation][:param_type] == 'body'))
+          end
         end
 
         def to_definition(path, params, route, definitions)
@@ -97,19 +112,16 @@ module GrapeSwagger
             next if value.blank?
 
             if x == :type
-              if value == 'array'
-                # Handle array type
+              if value == 'Hash'
+                memo[x] = 'object'
+              elsif value == 'Array'
+                memo[x] = 'array'
+                # Add default items if none specified
+                memo[:items] = { type: 'string' } unless param[:items] || (param[:schema] && param[:schema][:items])
+              elsif value == 'array'
                 memo[x] = value
-
-                # Add items property if it doesn't exist
-                if !param[:items] && (!param[:schema] || !param[:schema][:items])
-                  # Default to string type if no item type is specified
-                  memo[:items] = { type: 'string' }
-                elsif param[:items]
-                  memo[:items] = param[:items]
-                elsif param[:schema] && param[:schema][:items]
-                  memo[:items] = param[:schema][:items]
-                end
+                # Add default items if none specified
+                memo[:items] = { type: 'string' } unless param[:items] || (param[:schema] && param[:schema][:items])
               elsif @definitions[value].present?
                 # Handle reference type
                 if param[:description].present? || (param[:schema] && param[:schema][:description].present?)
@@ -192,7 +204,24 @@ module GrapeSwagger
 
         def build_definition(name, params, verb = nil)
           name = "#{verb}#{name}" if verb
-          @definitions[name] = should_expose_as_array?(params) ? array_type : object_type
+
+          # Special handling for hash and array parameters - always create a schema definition
+          has_hash_or_array = params.any? do |param|
+            (param[:schema] && param[:schema][:type] == 'array') ||
+              (param[:schema] && param[:schema][:type] == 'object') ||
+              (param[:type] == 'Hash') ||
+              (param[:type] == 'Array') ||
+              # Check for 'array' and 'hash' as strings in type
+              (param[:documentation] &&
+                %w[array hash].include?(param[:documentation][:type].to_s))
+          end
+
+          # Create the definition regardless of array status if we have hash or array params
+          @definitions[name] = if has_hash_or_array
+                                 object_type
+                               else
+                                 should_expose_as_array?(params) ? array_type : object_type
+                               end
 
           name
         end
@@ -241,7 +270,14 @@ module GrapeSwagger
         end
 
         def deletable?(param)
-          param[:in] == 'body'
+          param[:in] == 'body' ||
+            param[:type] == 'Hash' ||
+            param[:type] == 'Array' ||
+            (param[:schema] && %w[object array].include?(param[:schema][:type])) ||
+            (param[:documentation] &&
+             (%w[Hash Array].include?(param[:documentation][:type]) ||
+              param[:documentation][:in] == 'body' ||
+              param[:documentation][:param_type] == 'body'))
         end
 
         def move_methods

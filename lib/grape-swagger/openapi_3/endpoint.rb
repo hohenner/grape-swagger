@@ -196,6 +196,13 @@ module Grape
       # Handle parameters without schema
       parameters.each do |param|
         param[:schema] ||= {}
+
+        # Explicitly handle Hash and Array types
+        next unless param[:type] == 'Hash' || param[:type] == 'Array' ||
+                    (param[:documentation] && %w[array hash].include?(param[:documentation][:type].to_s))
+
+        # Convert type to schema type
+        param[:schema][:type] = param[:type] == 'Hash' ? 'object' : 'array'
       end
 
       file_params, other_params = parameters.partition { |p| p[:schema][:type] == 'file' }
